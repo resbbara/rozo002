@@ -1,65 +1,84 @@
-import Image from "next/image";
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { Activity } from 'lucide-react'
+import type { MonitoredUrl } from '@/types'
+import AddUrlForm from '@/components/AddUrlForm'
+import UrlCard from '@/components/UrlCard'
+import PushToggle from '@/components/PushToggle'
 
 export default function Home() {
+  const [urls, setUrls] = useState<MonitoredUrl[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    const res = await fetch('/api/urls')
+    setUrls(await res.json())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function toggle(id: string, active: boolean) {
+    await fetch(`/api/urls/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: active }),
+    })
+    load()
+  }
+
+  const active = urls.filter(u => u.is_active).length
+  const changed = urls.filter(u => u.last_hash !== null).length
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* 헤더 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Activity size={22} color="var(--accent)" />
+          <span style={{ fontWeight: 800, fontSize: 20 }}>URL Monitor</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <PushToggle />
+      </div>
+
+      {/* 요약 통계 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {[
+          { label: '등록된 URL', value: urls.length, color: 'var(--text)' },
+          { label: '모니터링 중', value: active, color: 'var(--success)' },
+          { label: '첫 확인 완료', value: changed, color: 'var(--accent)' },
+        ].map(stat => (
+          <div key={stat.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px', textAlign: 'center' }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: stat.color }}>{stat.value}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* URL 추가 폼 */}
+      <AddUrlForm onAdded={load} />
+
+      {/* URL 목록 */}
+      {loading ? (
+        <div style={{ textAlign: 'center', color: 'var(--muted)', padding: 40 }}>로딩 중...</div>
+      ) : urls.length === 0 ? (
+        <div style={{ textAlign: 'center', color: 'var(--muted)', padding: 60, border: '1px dashed var(--border)', borderRadius: 12 }}>
+          <Activity size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
+          <p>등록된 URL이 없습니다.</p>
+          <p style={{ fontSize: 13, marginTop: 4 }}>위 버튼으로 URL을 추가해보세요.</p>
         </div>
-      </main>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {urls.map(item => (
+            <UrlCard key={item.id} item={item} onDeleted={load} onToggle={toggle} />
+          ))}
+        </div>
+      )}
+
+      <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
+        Vercel Cron이 설정된 주기마다 자동 확인합니다 · 변경 감지 시 브라우저 알림 + 이메일 발송
+      </p>
     </div>
-  );
+  )
 }
