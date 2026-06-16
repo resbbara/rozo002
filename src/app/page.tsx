@@ -71,7 +71,7 @@ export default function Home() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {urls.map(item => (
-            <UrlCard key={item.id} item={item} onDeleted={load} onToggle={toggle} />
+            <UrlCard key={item.id} item={item} onDeleted={load} onToggle={toggle} onUpdated={load} />
           ))}
         </div>
       )}
