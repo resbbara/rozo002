@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Activity } from 'lucide-react'
+import { Activity, Settings } from 'lucide-react'
+import Link from 'next/link'
 import type { MonitoredUrl } from '@/types'
 import AddUrlForm from '@/components/AddUrlForm'
 import UrlCard from '@/components/UrlCard'
@@ -18,6 +19,15 @@ export default function Home() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function notifyToggle(id: string, field: 'notify_email' | 'notify_push', value: boolean) {
+    await fetch(`/api/urls/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value }),
+    })
+    load()
+  }
 
   async function toggle(id: string, active: boolean) {
     await fetch(`/api/urls/${id}`, {
@@ -39,7 +49,12 @@ export default function Home() {
           <Activity size={22} color="var(--accent)" />
           <span style={{ fontWeight: 800, fontSize: 20 }}>URL Monitor</span>
         </div>
-        <PushToggle />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/settings" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, textDecoration: 'none' }}>
+            <Settings size={14} /> 알림 설정
+          </Link>
+          <PushToggle />
+        </div>
       </div>
 
       {/* 요약 통계 */}
@@ -71,7 +86,7 @@ export default function Home() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {urls.map(item => (
-            <UrlCard key={item.id} item={item} onDeleted={load} onToggle={toggle} onUpdated={load} />
+            <UrlCard key={item.id} item={item} onDeleted={load} onToggle={toggle} onUpdated={load} onNotifyToggle={notifyToggle} />
           ))}
         </div>
       )}

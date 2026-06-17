@@ -5,6 +5,8 @@ export interface MonitoredUrl {
   selector: string | null
   interval_minutes: number
   is_active: boolean
+  notify_email: boolean
+  notify_push: boolean
   last_checked_at: string | null
   last_hash: string | null
   last_content: string | null
@@ -26,5 +28,17 @@ export interface PushSubscription {
   endpoint: string
   p256dh: string
   auth: string
+  created_at: string
+}
+
+export interface AppSettings {
+  resend_api_key: string | null
+  updated_at: string
+}
+
+export interface NotificationEmail {
+  id: string
+  email: string
+  is_active: boolean
   created_at: string
 }

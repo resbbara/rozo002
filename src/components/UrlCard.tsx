@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { RefreshCw, Trash2, ChevronDown, ChevronUp, ExternalLink, Clock, CheckCircle, AlertCircle, Wifi, WifiOff, Pencil, X, Check } from 'lucide-react'
+import { RefreshCw, Trash2, ChevronDown, ChevronUp, ExternalLink, Clock, CheckCircle, AlertCircle, Wifi, WifiOff, Pencil, X, Check, Mail, Bell } from 'lucide-react'
 import type { MonitoredUrl, CheckHistory } from '@/types'
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   onDeleted: () => void
   onToggle: (id: string, active: boolean) => void
   onUpdated: () => void
+  onNotifyToggle: (id: string, field: 'notify_email' | 'notify_push', value: boolean) => void
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -21,7 +22,7 @@ const fieldStyle: React.CSSProperties = {
   width: '100%',
 }
 
-export default function UrlCard({ item, onDeleted, onToggle, onUpdated }: Props) {
+export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotifyToggle }: Props) {
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState<{ hasChanged?: boolean; diffSummary?: string | null; error?: string } | null>(null)
   const [history, setHistory] = useState<CheckHistory[] | null>(null)
@@ -165,10 +166,22 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated }: Props)
           </div>
 
           {/* 메타 정보 */}
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)' }}>
+          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={11} />{item.interval_minutes}분마다</span>
             <span>마지막 확인: {lastChecked}</span>
             {item.selector && <span style={{ color: 'var(--accent)' }}>셀렉터: {item.selector}</span>}
+            <button
+              onClick={() => onNotifyToggle(item.id, 'notify_email', !item.notify_email)}
+              title="이메일 알림"
+              style={{ background: 'none', border: `1px solid ${item.notify_email ? 'var(--accent)' : 'var(--border)'}`, color: item.notify_email ? 'var(--accent)' : 'var(--muted)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+              <Mail size={10} /> 이메일
+            </button>
+            <button
+              onClick={() => onNotifyToggle(item.id, 'notify_push', !item.notify_push)}
+              title="Push 알림"
+              style={{ background: 'none', border: `1px solid ${item.notify_push ? 'var(--accent)' : 'var(--border)'}`, color: item.notify_push ? 'var(--accent)' : 'var(--muted)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+              <Bell size={10} /> Push
+            </button>
           </div>
 
           {/* 체크 결과 */}
