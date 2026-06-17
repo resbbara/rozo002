@@ -16,5 +16,6 @@ create table if not exists notification_emails (
 
 -- URL별 알림 설정 (monitored_urls에 컬럼 추가)
 alter table monitored_urls
-  add column if not exists notify_email boolean not null default true,
-  add column if not exists notify_push boolean not null default true;
+  add column if not exists notify_email boolean not null default true,   -- 대표 이메일에도 발송
+  add column if not exists notify_push boolean not null default true,
+  add column if not exists extra_emails text[] not null default '{}';    -- 이 URL 전용 이메일 목록

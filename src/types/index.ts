@@ -7,6 +7,9 @@ export interface MonitoredUrl {
   is_active: boolean
   notify_email: boolean
   notify_push: boolean
+  extra_emails: string[]
+  min_change_percent: number
+  keywords: string[]
   last_checked_at: string | null
   last_hash: string | null
   last_content: string | null

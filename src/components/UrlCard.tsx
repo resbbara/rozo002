@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { RefreshCw, Trash2, ChevronDown, ChevronUp, ExternalLink, Clock, CheckCircle, AlertCircle, Wifi, WifiOff, Pencil, X, Check, Mail, Bell } from 'lucide-react'
+import { RefreshCw, Trash2, ChevronDown, ChevronUp, ExternalLink, Clock, CheckCircle, AlertCircle, Wifi, WifiOff, Pencil, X, Check, Mail, Bell, Tag, Eye } from 'lucide-react'
 import type { MonitoredUrl, CheckHistory } from '@/types'
+import { parseEmails } from '@/lib/validate'
 
 interface Props {
   item: MonitoredUrl
@@ -22,6 +23,29 @@ const fieldStyle: React.CSSProperties = {
   width: '100%',
 }
 
+function initForm(item: MonitoredUrl) {
+  return {
+    name: item.name,
+    url: item.url,
+    selector: item.selector ?? '',
+    interval_minutes: item.interval_minutes,
+    extra_emails: (item.extra_emails ?? []).join(', '),
+    min_change_percent: item.min_change_percent ?? 0,
+    keywords: (item.keywords ?? []).join(', '),
+  }
+}
+
+// 단어 단위 간이 diff — 추가/제거 단어 목록 반환
+function wordDiff(prev: string, curr: string) {
+  const pw = prev.split(/\s+/).filter(Boolean)
+  const cw = curr.split(/\s+/).filter(Boolean)
+  const pSet = new Set(pw)
+  const cSet = new Set(cw)
+  const added = [...new Set(cw.filter(w => !pSet.has(w)))]
+  const removed = [...new Set(pw.filter(w => !cSet.has(w)))]
+  return { added, removed }
+}
+
 export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotifyToggle }: Props) {
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState<{ hasChanged?: boolean; diffSummary?: string | null; error?: string } | null>(null)
@@ -32,7 +56,11 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
   // 편집 상태
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ name: item.name, url: item.url, selector: item.selector ?? '', interval_minutes: item.interval_minutes })
+  const [editError, setEditError] = useState<string | null>(null)
+  const [form, setForm] = useState(() => initForm(item))
+
+  // diff 상세 보기 (선택된 이력 항목 id)
+  const [diffOpenId, setDiffOpenId] = useState<string | null>(null)
 
   async function check() {
     setChecking(true)
@@ -62,15 +90,24 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
   }
 
   function startEdit() {
-    setForm({ name: item.name, url: item.url, selector: item.selector ?? '', interval_minutes: item.interval_minutes })
+    setForm(initForm(item))
+    setEditError(null)
     setEditing(true)
   }
 
   function cancelEdit() {
     setEditing(false)
+    setEditError(null)
   }
 
   async function saveEdit() {
+    setEditError(null)
+    const { valid: emails, invalid } = parseEmails(form.extra_emails)
+    if (invalid.length > 0) {
+      setEditError(`잘못된 이메일 형식: ${invalid.join(', ')}`)
+      return
+    }
+
     setSaving(true)
     try {
       await fetch(`/api/urls/${item.id}`, {
@@ -81,6 +118,9 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
           url: form.url,
           selector: form.selector || null,
           interval_minutes: Number(form.interval_minutes),
+          extra_emails: emails,
+          min_change_percent: Number(form.min_change_percent) || 0,
+          keywords: form.keywords.split(/[,\n]/).map(s => s.trim()).filter(Boolean),
         }),
       })
       setEditing(false)
@@ -118,6 +158,35 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
             <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>CSS 셀렉터 (비워두면 전체 페이지)</label>
             <input style={fieldStyle} value={form.selector} onChange={e => setForm(f => ({ ...f, selector: e.target.value }))} placeholder=".price, #stock-info" />
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8 }}>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>변경 민감도 (%)</label>
+              <input style={fieldStyle} type="number" min={0} max={100} value={form.min_change_percent} onChange={e => setForm(f => ({ ...f, min_change_percent: Number(e.target.value) }))} />
+              <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>0 = 모든 변경</p>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>키워드 감지 (쉼표 구분)</label>
+              <input style={fieldStyle} value={form.keywords} onChange={e => setForm(f => ({ ...f, keywords: e.target.value }))} placeholder="재고있음, 마감, 품절" />
+              <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>입력 시 해당 단어 등장/사라짐에만 알림</p>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>이 URL 전용 이메일 (쉼표 또는 줄바꿈으로 구분)</label>
+            <textarea
+              style={{ ...fieldStyle, minHeight: 60, resize: 'vertical', fontFamily: 'inherit' }}
+              value={form.extra_emails}
+              onChange={e => setForm(f => ({ ...f, extra_emails: e.target.value }))}
+              placeholder="a@example.com, b@example.com"
+            />
+            <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>
+              아래 &quot;대표 이메일&quot; 토글을 켜면 설정의 대표 이메일에도 함께 발송됩니다.
+            </p>
+          </div>
+          {editError && (
+            <div style={{ background: '#ef444422', border: '1px solid var(--danger)', color: 'var(--danger)', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
+              {editError}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button onClick={cancelEdit} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
               <X size={13} /> 취소
@@ -170,11 +239,24 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={11} />{item.interval_minutes}분마다</span>
             <span>마지막 확인: {lastChecked}</span>
             {item.selector && <span style={{ color: 'var(--accent)' }}>셀렉터: {item.selector}</span>}
+            {(item.min_change_percent ?? 0) > 0 && (
+              <span style={{ color: 'var(--accent)' }}>민감도 {item.min_change_percent}%↑</span>
+            )}
+            {(item.keywords?.length ?? 0) > 0 && (
+              <span title={item.keywords.join(', ')} style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--accent)' }}>
+                <Tag size={10} /> 키워드 {item.keywords.length}개
+              </span>
+            )}
+            {(item.extra_emails?.length ?? 0) > 0 && (
+              <span title={item.extra_emails.join(', ')} style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--accent)' }}>
+                <Mail size={10} /> 전용 {item.extra_emails.length}명
+              </span>
+            )}
             <button
               onClick={() => onNotifyToggle(item.id, 'notify_email', !item.notify_email)}
-              title="이메일 알림"
+              title="설정의 대표 이메일에도 발송"
               style={{ background: 'none', border: `1px solid ${item.notify_email ? 'var(--accent)' : 'var(--border)'}`, color: item.notify_email ? 'var(--accent)' : 'var(--muted)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
-              <Mail size={10} /> 이메일
+              <Mail size={10} /> 대표 이메일
             </button>
             <button
               onClick={() => onNotifyToggle(item.id, 'notify_push', !item.notify_push)}
@@ -213,21 +295,53 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
           </button>
 
           {historyOpen && history && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 360, overflowY: 'auto' }}>
               {history.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>이력 없음</span>}
-              {history.map(h => (
-                <div key={h.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, fontSize: 12,
-                  background: h.has_changed ? '#f59e0b11' : h.error ? '#ef444411' : 'transparent',
-                  border: `1px solid ${h.has_changed ? '#f59e0b33' : h.error ? '#ef444433' : 'var(--border)'}`,
-                }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: h.error ? 'var(--danger)' : h.has_changed ? 'var(--warning)' : 'var(--muted)', flexShrink: 0 }} />
-                  <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{new Date(h.checked_at).toLocaleString('ko-KR')}</span>
-                  <span style={{ flex: 1, color: h.has_changed ? 'var(--warning)' : h.error ? 'var(--danger)' : 'var(--muted)' }}>
-                    {h.error ? `오류: ${h.error}` : h.has_changed ? (h.diff_summary ?? '변경됨') : '변경 없음'}
-                  </span>
-                </div>
-              ))}
+              {history.map((h, i) => {
+                const prevSnap = history[i + 1]?.content_snapshot ?? ''
+                const canDiff = h.has_changed && (h.content_snapshot != null)
+                const isOpen = diffOpenId === h.id
+                const diff = isOpen ? wordDiff(prevSnap, h.content_snapshot ?? '') : null
+                return (
+                  <div key={h.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', borderRadius: 6, fontSize: 12,
+                    background: h.has_changed ? '#f59e0b11' : h.error ? '#ef444411' : 'transparent',
+                    border: `1px solid ${h.has_changed ? '#f59e0b33' : h.error ? '#ef444433' : 'var(--border)'}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: h.error ? 'var(--danger)' : h.has_changed ? 'var(--warning)' : 'var(--muted)', flexShrink: 0 }} />
+                      <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{new Date(h.checked_at).toLocaleString('ko-KR')}</span>
+                      <span style={{ flex: 1, color: h.has_changed ? 'var(--warning)' : h.error ? 'var(--danger)' : 'var(--muted)' }}>
+                        {h.error ? `오류: ${h.error}` : h.has_changed ? (h.diff_summary ?? '변경됨') : '변경 없음'}
+                      </span>
+                      {canDiff && (
+                        <button onClick={() => setDiffOpenId(isOpen ? null : h.id)} title="변경 상세 보기"
+                          style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 5, padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                          <Eye size={11} /> {isOpen ? '닫기' : '상세'}
+                        </button>
+                      )}
+                    </div>
+                    {isOpen && diff && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 18 }}>
+                        {diff.added.length === 0 && diff.removed.length === 0 && (
+                          <span style={{ color: 'var(--muted)' }}>단어 단위 차이를 찾지 못했습니다 (직전 스냅샷이 없거나 공백 변경).</span>
+                        )}
+                        {diff.added.length > 0 && (
+                          <div>
+                            <span style={{ color: 'var(--success)', fontWeight: 600 }}>+ 추가됨 ({diff.added.length})</span>
+                            <div style={{ marginTop: 2, color: 'var(--success)', wordBreak: 'break-word' }}>{diff.added.slice(0, 60).join(' ')}{diff.added.length > 60 ? ' …' : ''}</div>
+                          </div>
+                        )}
+                        {diff.removed.length > 0 && (
+                          <div>
+                            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>− 제거됨 ({diff.removed.length})</span>
+                            <div style={{ marginTop: 2, color: 'var(--danger)', wordBreak: 'break-word' }}>{diff.removed.slice(0, 60).join(' ')}{diff.removed.length > 60 ? ' …' : ''}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </>

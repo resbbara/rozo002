@@ -150,8 +150,12 @@ export default function SettingsPage() {
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Mail size={16} color="var(--accent)" />
-          <span style={{ fontWeight: 700 }}>이메일 수신자</span>
+          <span style={{ fontWeight: 700 }}>대표 이메일 수신자</span>
         </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: -8 }}>
+          여기 등록된 이메일은 각 URL에서 &quot;대표 이메일&quot; 토글이 켜진 경우 공통으로 발송됩니다.
+          특정 URL에만 보내려면 URL 카드의 수정에서 &quot;전용 이메일&quot;을 입력하세요.
+        </p>
 
         {/* 추가 폼 */}
         <form onSubmit={addEmail} style={{ display: 'flex', gap: 8 }}>

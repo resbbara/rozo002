@@ -10,6 +10,7 @@ export interface CrawlResult {
 export interface DiffResult {
   hasChanged: boolean
   diffSummary: string | null
+  changePercent: number
 }
 
 export async function crawlUrl(url: string, selector?: string | null): Promise<CrawlResult> {
@@ -39,14 +40,32 @@ export async function crawlUrl(url: string, selector?: string | null): Promise<C
 }
 
 export function computeDiff(prev: string, curr: string): DiffResult {
-  if (prev === curr) return { hasChanged: false, diffSummary: null }
+  if (prev === curr) return { hasChanged: false, diffSummary: null, changePercent: 0 }
 
-  const prevLines = prev.split('\n')
-  const currLines = curr.split('\n')
+  // 단어 단위 변경률 계산 (멀티셋 기준)
+  const prevWords = prev.split(/\s+/).filter(Boolean)
+  const currWords = curr.split(/\s+/).filter(Boolean)
 
-  const added = currLines.filter(l => !prevLines.includes(l)).length
-  const removed = prevLines.filter(l => !currLines.includes(l)).length
+  const countMap = (words: string[]) => {
+    const m = new Map<string, number>()
+    for (const w of words) m.set(w, (m.get(w) ?? 0) + 1)
+    return m
+  }
+  const pm = countMap(prevWords)
+  const cm = countMap(currWords)
+  const allWords = new Set([...pm.keys(), ...cm.keys()])
 
-  const summary = `+${added}줄 추가, -${removed}줄 제거 (전체 ${currLines.length}줄)`
-  return { hasChanged: true, diffSummary: summary }
+  let added = 0
+  let removed = 0
+  for (const w of allWords) {
+    const diff = (cm.get(w) ?? 0) - (pm.get(w) ?? 0)
+    if (diff > 0) added += diff
+    else removed += -diff
+  }
+
+  const base = Math.max(prevWords.length, currWords.length, 1)
+  const changePercent = Math.round(((added + removed) / base) * 100)
+
+  const summary = `${changePercent}% 변경 (+${added}단어 / -${removed}단어, 전체 ${currWords.length}단어)`
+  return { hasChanged: true, diffSummary: summary, changePercent }
 }

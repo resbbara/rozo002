@@ -25,13 +25,46 @@ export async function checkUrl(urlId: string) {
   }
 
   const hasChanged = !crawlError && row.last_hash !== null && hash !== row.last_hash
-  const diff = hasChanged ? computeDiff(row.last_content ?? '', content) : { hasChanged: false, diffSummary: null }
+  const diff = hasChanged ? computeDiff(row.last_content ?? '', content) : { hasChanged: false, diffSummary: null, changePercent: 0 }
+
+  // 알림 발송 여부 판정 (민감도 + 키워드)
+  let shouldNotify = hasChanged
+  let skipReason = ''
+
+  if (hasChanged) {
+    const minPercent = row.min_change_percent ?? 0
+    if (minPercent > 0 && diff.changePercent < minPercent) {
+      shouldNotify = false
+      skipReason = `민감도 미달 (${diff.changePercent}% < ${minPercent}%)`
+    }
+
+    const keywords: string[] = row.keywords ?? []
+    if (shouldNotify && keywords.length > 0) {
+      const prevText = (row.last_content ?? '').toLowerCase()
+      const currText = content.toLowerCase()
+      const triggered = keywords.filter(k => {
+        const kw = k.trim().toLowerCase()
+        if (!kw) return false
+        return prevText.includes(kw) !== currText.includes(kw) // 등장 또는 사라짐
+      })
+      if (triggered.length === 0) {
+        shouldNotify = false
+        skipReason = '키워드 변화 없음'
+      } else {
+        skipReason = `키워드 변화: ${triggered.join(', ')}`
+      }
+    }
+  }
+
+  const diffSummaryForHistory = hasChanged && skipReason && !shouldNotify
+    ? `${diff.diffSummary} · 알림 생략(${skipReason})`
+    : diff.diffSummary
 
   await supabaseAdmin.from('check_history').insert({
     url_id: urlId,
     has_changed: hasChanged,
     content_snapshot: content || null,
-    diff_summary: diff.diffSummary,
+    diff_summary: diffSummaryForHistory,
     error: crawlError ?? null,
   })
 
@@ -47,21 +80,22 @@ export async function checkUrl(urlId: string) {
       .eq('id', urlId)
   }
 
-  if (hasChanged) {
+  if (shouldNotify) {
     await sendNotifications(row.name, row.url, diff.diffSummary ?? '변경 감지됨', {
-      email: row.notify_email ?? true,
+      useGlobalEmail: row.notify_email ?? true,
+      extraEmails: row.extra_emails ?? [],
       push: row.notify_push ?? true,
     })
   }
 
-  return { hasChanged, diffSummary: diff.diffSummary, error: crawlError }
+  return { hasChanged, diffSummary: diffSummaryForHistory, error: crawlError, notified: shouldNotify }
 }
 
 async function sendNotifications(
   name: string,
   url: string,
   summary: string,
-  notify: { email: boolean; push: boolean },
+  notify: { useGlobalEmail: boolean; extraEmails: string[]; push: boolean },
 ) {
   // DB에서 설정 로드
   const [{ data: settings }, { data: emailRows }, { data: subs }] = await Promise.all([
@@ -85,14 +119,24 @@ async function sendNotifications(
     )
   }
 
+  // 수신 이메일 = (대표 이메일 ON이면 글로벌 active 목록) ∪ (URL 전용 이메일), 중복 제거
+  const recipients = new Set<string>()
+  if (notify.useGlobalEmail) {
+    for (const e of emailRows ?? []) recipients.add(e.email.trim().toLowerCase())
+  }
+  for (const e of notify.extraEmails) {
+    const v = e.trim().toLowerCase()
+    if (v) recipients.add(v)
+  }
+
   // 이메일 — DB API 키 우선, 없으면 env 폴백
-  if (notify.email && emailRows?.length) {
+  if (recipients.size > 0) {
     const apiKey = settings?.resend_api_key || process.env.RESEND_API_KEY
     if (apiKey) {
       const resend = new Resend(apiKey)
       await resend.emails.send({
         from: 'URLMonitor <onboarding@resend.dev>',
-        to: emailRows.map(e => e.email),
+        to: [...recipients],
         subject: `[변경 감지] ${name}`,
         html: `<p><b>${name}</b> 페이지가 변경되었습니다.</p><p>${summary}</p><p><a href="${url}">${url}</a></p>`,
       }).catch(() => {})
