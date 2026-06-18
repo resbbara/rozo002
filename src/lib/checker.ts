@@ -24,6 +24,7 @@ export async function checkUrl(urlId: string) {
     crawlError = e instanceof Error ? e.message : String(e)
   }
 
+  const isBaseline = !crawlError && row.last_hash === null  // 최초 체크 (비교 대상 없음)
   const hasChanged = !crawlError && row.last_hash !== null && hash !== row.last_hash
   const diff = hasChanged ? computeDiff(row.last_content ?? '', content) : { hasChanged: false, diffSummary: null, changePercent: 0 }
 
@@ -88,7 +89,7 @@ export async function checkUrl(urlId: string) {
     })
   }
 
-  return { hasChanged, diffSummary: diffSummaryForHistory, error: crawlError, notified: shouldNotify }
+  return { hasChanged, diffSummary: diffSummaryForHistory, error: crawlError, notified: shouldNotify, baseline: isBaseline }
 }
 
 async function sendNotifications(

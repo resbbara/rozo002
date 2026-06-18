@@ -48,7 +48,7 @@ function wordDiff(prev: string, curr: string) {
 
 export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotifyToggle }: Props) {
   const [checking, setChecking] = useState(false)
-  const [result, setResult] = useState<{ hasChanged?: boolean; diffSummary?: string | null; error?: string } | null>(null)
+  const [result, setResult] = useState<{ hasChanged?: boolean; diffSummary?: string | null; error?: string; notified?: boolean; baseline?: boolean } | null>(null)
   const [history, setHistory] = useState<CheckHistory[] | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -282,8 +282,10 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
                 {result.error
                   ? `오류: ${result.error}`
                   : result.hasChanged
-                    ? `변경 감지! ${result.diffSummary ?? ''}`
-                    : '변경 없음'}
+                    ? `변경 감지! ${result.diffSummary ?? ''}${result.notified === false ? ' (조건 미달로 알림 생략)' : ''}`
+                    : result.baseline
+                      ? '기준선 저장 완료 — 다음 확인부터 변경을 감지합니다'
+                      : '변경 없음'}
               </span>
             </div>
           )}
