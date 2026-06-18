@@ -301,9 +301,9 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
               {history.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>이력 없음</span>}
               {history.map((h, i) => {
                 const prevSnap = history[i + 1]?.content_snapshot ?? ''
-                const canDiff = h.has_changed && (h.content_snapshot != null)
+                const hasSnap = h.content_snapshot != null && h.content_snapshot !== ''
                 const isOpen = diffOpenId === h.id
-                const diff = isOpen ? wordDiff(prevSnap, h.content_snapshot ?? '') : null
+                const diff = isOpen && h.has_changed ? wordDiff(prevSnap, h.content_snapshot ?? '') : null
                 return (
                   <div key={h.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', borderRadius: 6, fontSize: 12,
                     background: h.has_changed ? '#f59e0b11' : h.error ? '#ef444411' : 'transparent',
@@ -315,30 +315,41 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
                       <span style={{ flex: 1, color: h.has_changed ? 'var(--warning)' : h.error ? 'var(--danger)' : 'var(--muted)' }}>
                         {h.error ? `오류: ${h.error}` : h.has_changed ? (h.diff_summary ?? '변경됨') : '변경 없음'}
                       </span>
-                      {canDiff && (
-                        <button onClick={() => setDiffOpenId(isOpen ? null : h.id)} title="변경 상세 보기"
+                      {hasSnap && (
+                        <button onClick={() => setDiffOpenId(isOpen ? null : h.id)} title="이 시점 내용 보기"
                           style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 5, padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                          <Eye size={11} /> {isOpen ? '닫기' : '상세'}
+                          <Eye size={11} /> {isOpen ? '닫기' : '내용'}
                         </button>
                       )}
                     </div>
-                    {isOpen && diff && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 18 }}>
-                        {diff.added.length === 0 && diff.removed.length === 0 && (
-                          <span style={{ color: 'var(--muted)' }}>단어 단위 차이를 찾지 못했습니다 (직전 스냅샷이 없거나 공백 변경).</span>
-                        )}
-                        {diff.added.length > 0 && (
-                          <div>
-                            <span style={{ color: 'var(--success)', fontWeight: 600 }}>+ 추가됨 ({diff.added.length})</span>
-                            <div style={{ marginTop: 2, color: 'var(--success)', wordBreak: 'break-word' }}>{diff.added.slice(0, 60).join(' ')}{diff.added.length > 60 ? ' …' : ''}</div>
+                    {isOpen && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 18 }}>
+                        {/* 변경된 경우: 추가/제거 단어 */}
+                        {diff && (diff.added.length > 0 || diff.removed.length > 0) && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {diff.added.length > 0 && (
+                              <div>
+                                <span style={{ color: 'var(--success)', fontWeight: 600 }}>+ 추가됨 ({diff.added.length})</span>
+                                <div style={{ marginTop: 2, color: 'var(--success)', wordBreak: 'break-word' }}>{diff.added.slice(0, 60).join(' ')}{diff.added.length > 60 ? ' …' : ''}</div>
+                              </div>
+                            )}
+                            {diff.removed.length > 0 && (
+                              <div>
+                                <span style={{ color: 'var(--danger)', fontWeight: 600 }}>− 제거됨 ({diff.removed.length})</span>
+                                <div style={{ marginTop: 2, color: 'var(--danger)', wordBreak: 'break-word' }}>{diff.removed.slice(0, 60).join(' ')}{diff.removed.length > 60 ? ' …' : ''}</div>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {diff.removed.length > 0 && (
-                          <div>
-                            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>− 제거됨 ({diff.removed.length})</span>
-                            <div style={{ marginTop: 2, color: 'var(--danger)', wordBreak: 'break-word' }}>{diff.removed.slice(0, 60).join(' ')}{diff.removed.length > 60 ? ' …' : ''}</div>
-                          </div>
-                        )}
+                        {/* 해당 시점 전체 내용 */}
+                        <div>
+                          <span style={{ color: 'var(--muted)', fontWeight: 600 }}>이 시점의 내용 ({(h.content_snapshot ?? '').length.toLocaleString()}자)</span>
+                          <pre style={{
+                            marginTop: 4, padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)',
+                            borderRadius: 6, maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                            fontFamily: 'inherit', fontSize: 11, color: 'var(--text)', lineHeight: 1.5,
+                          }}>{h.content_snapshot}</pre>
+                        </div>
                       </div>
                     )}
                   </div>
