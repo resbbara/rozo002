@@ -30,7 +30,8 @@ create table if not exists check_history (
   has_changed boolean not null default false,
   content_snapshot text,
   diff_summary text,
-  error text
+  error text,
+  screenshot_url text                            -- 이 시점 화면 스크린샷 (Storage 공개 URL)
 );
 
 -- 브라우저 Push 구독

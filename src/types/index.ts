@@ -24,6 +24,7 @@ export interface CheckHistory {
   content_snapshot: string | null
   diff_summary: string | null
   error: string | null
+  screenshot_url: string | null
 }
 
 export interface PushSubscription {

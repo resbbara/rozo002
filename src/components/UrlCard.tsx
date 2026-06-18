@@ -341,6 +341,16 @@ export default function UrlCard({ item, onDeleted, onToggle, onUpdated, onNotify
                             )}
                           </div>
                         )}
+                        {/* 해당 시점 화면 스크린샷 */}
+                        {h.screenshot_url && (
+                          <div>
+                            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>이 시점의 화면</span>
+                            <a href={h.screenshot_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={h.screenshot_url} alt="페이지 화면 스냅샷" style={{ width: '100%', borderRadius: 6, border: '1px solid var(--border)' }} />
+                            </a>
+                          </div>
+                        )}
                         {/* 해당 시점 전체 내용 */}
                         <div>
                           <span style={{ color: 'var(--muted)', fontWeight: 600 }}>이 시점의 내용 ({(h.content_snapshot ?? '').length.toLocaleString()}자)</span>

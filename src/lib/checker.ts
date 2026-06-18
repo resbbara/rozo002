@@ -1,5 +1,6 @@
 import { supabaseAdmin } from './supabase'
 import { crawlUrl, computeDiff } from './crawler'
+import { captureScreenshot } from './screenshot'
 import webpush from 'web-push'
 import { Resend } from 'resend'
 
@@ -61,13 +62,21 @@ export async function checkUrl(urlId: string) {
     ? `${diff.diffSummary} · 알림 생략(${skipReason})`
     : diff.diffSummary
 
-  await supabaseAdmin.from('check_history').insert({
+  const { data: histRow } = await supabaseAdmin.from('check_history').insert({
     url_id: urlId,
     has_changed: hasChanged,
     content_snapshot: content || null,
     diff_summary: diffSummaryForHistory,
     error: crawlError ?? null,
-  })
+  }).select('id').single()
+
+  // 기준선 또는 변경 시점에 화면 스크린샷 캡처·저장
+  if (!crawlError && histRow && (isBaseline || hasChanged)) {
+    const shotUrl = await captureScreenshot(row.url, urlId, histRow.id)
+    if (shotUrl) {
+      await supabaseAdmin.from('check_history').update({ screenshot_url: shotUrl }).eq('id', histRow.id)
+    }
+  }
 
   if (!crawlError) {
     await supabaseAdmin
